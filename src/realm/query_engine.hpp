@@ -129,7 +129,7 @@ const size_t findlocals = 64;
 
 // Average match distance in linear searches where further increase in distance no longer increases query speed
 // (because time spent on handling each match becomes insignificant compared to time spent on the search).
-const size_t bestdist = 512;
+const size_t bestdist = 128;
 
 // Minimum number of matches required in a certain condition before it can be used to compute statistics. Too high
 // value can spent too much time in a bad node (with high match frequency). Too low value gives inaccurate statistics.
@@ -861,7 +861,7 @@ public:
         : m_value(v)
     {
         m_condition_column_key = column;
-        m_dT = 100.0;
+        m_dT = 15.0;
     }
 
     BinaryNode(null, ColKey column)
@@ -981,7 +981,6 @@ public:
         : m_value(v)
     {
         m_condition_column_key = column;
-        m_dT = 2.0;
     }
 
     TimestampNodeBase(null, ColKey column)
@@ -1050,6 +1049,7 @@ public:
         : m_value(v)
     {
         m_condition_column_key = column;
+        m_dT = 15.;
     }
 
     DecimalNodeBase(null, ColKey column)
@@ -1063,13 +1063,6 @@ public:
         m_array_ptr = LeafPtr(new (&m_leaf_cache_storage) ArrayDecimal128(m_table.unchecked_ptr()->get_alloc()));
         m_cluster->init_leaf(this->m_condition_column_key, m_array_ptr.get());
         m_leaf_ptr = m_array_ptr.get();
-    }
-
-    void init(bool will_query_ranges) override
-    {
-        ParentNode::init(will_query_ranges);
-
-        m_dD = 100.0;
     }
 
 protected:
@@ -1155,8 +1148,7 @@ public:
     void init(bool will_query_ranges) override
     {
         ParentNode::init(will_query_ranges);
-
-        m_dD = 100.0;
+        m_dT = double(sizeof(ObjectType)) / 4;
     }
 
 protected:
@@ -1320,6 +1312,7 @@ public:
         REALM_ASSERT(column.get_type() == col_type_Mixed);
         get_ownership();
         m_condition_column_key = column;
+        m_dT = 15.0;
     }
 
     MixedNodeBase(null, ColKey column)
@@ -1336,12 +1329,6 @@ public:
         m_leaf_ptr = m_array_ptr.get();
     }
 
-    void init(bool will_query_ranges) override
-    {
-        ParentNode::init(will_query_ranges);
-
-        m_dD = 100.0;
-    }
 
     std::string describe(util::serializer::SerialisationState& state) const override
     {
@@ -1515,6 +1502,19 @@ public:
         m_array_ptr = LeafPtr(new (&m_leaf_cache_storage) ArrayString(m_table.unchecked_ptr()->get_alloc()));
         m_cluster->init_leaf(this->m_condition_column_key, m_array_ptr.get());
         m_leaf_ptr = m_array_ptr.get();
+        switch (m_leaf_ptr->get_type()) {
+            case ArrayString::Type::small_strings:
+                m_dT = 5.;
+                break;
+            case ArrayString::Type::medium_strings:
+                m_dT = 10.;
+                break;
+            case ArrayString::Type::big_strings:
+                m_dT = 15.;
+                break;
+            case ArrayString::Type::enum_strings:
+                break;
+        }
     }
 
     void init(bool will_query_ranges) override
